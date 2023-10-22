@@ -1,5 +1,0 @@
-logger:
-  level: info
-  encoding: json
-  colored: false
-  tags:

@@ -36,7 +36,6 @@ func New(env string, cfg string) Config {
 	}
 
 	y, err := config.NewYAML(
-		config.File(path.Join(cfg, "base.yml")),
 		config.File(path.Join(cfg, env+".yml")),
 	)
 	if err != nil {

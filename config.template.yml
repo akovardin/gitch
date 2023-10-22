@@ -1,0 +1,14 @@
+logger:
+  level: info
+  encoding: json
+  colored: false
+  tags:
+
+application:
+  period: 1h
+  key: /Users/artem/.ssh/id_rsa
+  projects:
+    example:
+      enable: true
+      from: git@gitflic.ru:example/example.git
+      to: git@github.com:example/example.git

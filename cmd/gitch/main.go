@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"gitch/pkg/syncer"
 	"os"
 
 	"github.com/urfave/cli/v2"
@@ -14,6 +12,7 @@ import (
 	"gitch/app/server"
 	"gitch/app/worker"
 	"gitch/pkg/logger"
+	"gitch/pkg/syncer"
 )
 
 func main() {
@@ -36,7 +35,6 @@ func main() {
 			&cli.Command{
 				Name: "server",
 				Action: func(c *cli.Context) error {
-					fmt.Println(os.Getenv("HOME"))
 					app(c,
 						fx.Invoke(func(server *server.Server) {}),
 						fx.Invoke(func(worker *worker.Worker) {}),
@@ -50,13 +48,30 @@ func main() {
 			},
 			&cli.Command{
 				Name: "sync",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Required: true,
+						Name:     "from", // "git@gitflic.ru:getapp/example.git"
+						Usage:    "from which git repo to make mirror",
+					},
+					&cli.StringFlag{
+						Required: true,
+						Name:     "to", // "git@github.com:kovardin/example.git"
+						Usage:    "to which git repo to make mirror",
+					},
+					&cli.StringFlag{
+						Name:  "key",
+						Usage: "ssha key for git repos",
+						Value: os.Getenv("HOME") + "/.ssh/id_rsa",
+					},
+				},
 				Action: func(c *cli.Context) error {
 					app(c,
 						fx.Invoke(func(log *logger.Logger, cfg config.Application) {
 							snc := syncer.New(
-								"git@gitflic.ru:getapp/example.git",
-								"git@github.com:kovardin/example.git",
-								os.Getenv("HOME")+"/.ssh/id_rsa",
+								c.String("from"),
+								c.String("to"),
+								c.String("key"),
 							)
 							if err := snc.Sync(); err != nil {
 								log.Error("error on sync", zap.Error(err))
