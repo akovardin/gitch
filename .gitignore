@@ -2,3 +2,7 @@
 *.iml
 example
 config.yml
+prod.yml
+/build/bin/*
+Supfile.yml
+Taskfile.yaml

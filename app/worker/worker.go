@@ -67,7 +67,7 @@ func (w *Worker) process() {
 		)
 
 		if err := s.Sync(); err != nil {
-			w.log.Error("error on sync project", zap.String("name", name))
+			w.log.Error("error on sync project", zap.String("name", name), zap.Error(err))
 		}
 	}
 }

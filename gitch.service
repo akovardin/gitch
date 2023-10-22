@@ -1,0 +1,11 @@
+[Unit]
+Description=gitch
+
+[Service]
+ExecStart=/opt/gitch/gitch --env=prod server
+WorkingDirectory=/opt/gitch/
+User=root
+Restart=always
+RestartSec=3
+
+[Install]

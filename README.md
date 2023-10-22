@@ -25,6 +25,12 @@ go build -o gitch ./cmd/gitch
 ./gitch sync --from=git@gitflic.ru:example/example.git --to=git@github.com:example/example.git
 ```
 
+## Доделки
+
+- [x] Периодический синк репозиториев
+- [ ] Синхронизация по веб-хуку
+- [ ] Завернуть в Docker для быстрого старта
+
 ## Ссылки 
 
 - Весь проект работает на [go-git](https://github.com/go-git/go-git)
