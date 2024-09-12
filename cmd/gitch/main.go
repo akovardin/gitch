@@ -98,7 +98,6 @@ func migration(app *pocketbase.PocketBase) {
 func task(app *pocketbase.PocketBase, settings *settings.Settings, sync *tasks.Sync) {
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
 		scheduler := cron.New()
-		// TODO: use period from settings
 		scheduler.MustAdd("sync", settings.Period("0 */1 * * *"), func() {
 			sync.Do()
 		})

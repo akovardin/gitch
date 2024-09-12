@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	ss "golang.org/x/crypto/ssh"
+
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
@@ -29,6 +31,11 @@ func (s *Syncer) Sync() error {
 	publicKeys, err := ssh.NewPublicKeys("git", []byte(s.key), "")
 	if err != nil {
 		return fmt.Errorf("error on create key: %w", err)
+	}
+
+	// https://github.com/src-d/go-git/issues/637
+	publicKeys.HostKeyCallbackHelper = ssh.HostKeyCallbackHelper{
+		HostKeyCallback: ss.InsecureIgnoreHostKey(),
 	}
 
 	r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{

@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"github.com/pocketbase/pocketbase"
+
 	"gohome.4gophers.ru/kovardin/gitch/app/settings"
 	"gohome.4gophers.ru/kovardin/gitch/pkg/syncer"
 )
