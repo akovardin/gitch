@@ -26,12 +26,7 @@ func New(from, to, key string) *Syncer {
 }
 
 func (s *Syncer) Sync() error {
-	sshKey, err := os.ReadFile(s.key)
-	if err != nil {
-		return fmt.Errorf("error on read file: %w", err)
-	}
-
-	publicKeys, err := ssh.NewPublicKeys("git", sshKey, "")
+	publicKeys, err := ssh.NewPublicKeys("git", []byte(s.key), "")
 	if err != nil {
 		return fmt.Errorf("error on create key: %w", err)
 	}

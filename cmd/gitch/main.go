@@ -1,114 +1,108 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
-	"github.com/urfave/cli/v2"
+	"github.com/labstack/echo/v5"
+	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/plugins/migratecmd"
+	"github.com/pocketbase/pocketbase/tools/cron"
+	"github.com/pocketbase/pocketbase/tools/template"
 	"go.uber.org/fx"
-	"go.uber.org/fx/fxevent"
-	"go.uber.org/zap"
 
-	"gitch/app/config"
-	"gitch/app/server"
-	"gitch/app/worker"
-	"gitch/pkg/logger"
-	"gitch/pkg/syncer"
+	"gohome.4gophers.ru/kovardin/gitch/app/handlers"
+	"gohome.4gophers.ru/kovardin/gitch/app/settings"
+	"gohome.4gophers.ru/kovardin/gitch/app/tasks"
+	_ "gohome.4gophers.ru/kovardin/gitch/migrations"
+	"gohome.4gophers.ru/kovardin/gitch/static"
 )
 
 func main() {
-	app := &cli.App{
-		Name:  "getapp",
-		Usage: "make an explosive entrance",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "env",
-				Value: "config",
-				Usage: "environment",
-			},
-			&cli.StringFlag{
-				Name:  "configs",
-				Value: "./",
-				Usage: "configs path",
-			},
-		},
-		Commands: cli.Commands{
-			&cli.Command{
-				Name: "server",
-				Action: func(c *cli.Context) error {
-					app(c,
-						fx.Invoke(func(server *server.Server) {}),
-						fx.Invoke(func(worker *worker.Worker) {}),
-						fx.WithLogger(func(log *zap.Logger) fxevent.Logger {
-							return &fxevent.ZapLogger{Logger: log}
-						}),
-					).Run()
+	fx.New(
+		handlers.Module,
+		tasks.Module,
 
-					return nil
-				},
-			},
-			&cli.Command{
-				Name: "sync",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Required: true,
-						Name:     "from", // "git@gitflic.ru:getapp/example.git"
-						Usage:    "from which git repo to make mirror",
-					},
-					&cli.StringFlag{
-						Required: true,
-						Name:     "to", // "git@github.com:kovardin/example.git"
-						Usage:    "to which git repo to make mirror",
-					},
-					&cli.StringFlag{
-						Name:  "key",
-						Usage: "ssha key for git repos",
-						Value: os.Getenv("HOME") + "/.ssh/id_rsa",
-					},
-				},
-				Action: func(c *cli.Context) error {
-					app(c,
-						fx.Invoke(func(log *logger.Logger, cfg config.Application) {
-							snc := syncer.New(
-								c.String("from"),
-								c.String("to"),
-								c.String("key"),
-							)
-							if err := snc.Sync(); err != nil {
-								log.Error("error on sync", zap.Error(err))
-							}
+		fx.Provide(pocketbase.New),
+		fx.Provide(template.NewRegistry),
+		fx.Provide(settings.New),
 
-							os.Exit(0)
-						}),
-						fx.WithLogger(func(log *zap.Logger) fxevent.Logger {
-							return &fxevent.ZapLogger{Logger: log}
-						}),
-					).Run()
-
-					return nil
-				},
-			},
-		},
-	}
-
-	app.Run(os.Args)
+		fx.Invoke(
+			migration,
+		),
+		fx.Invoke(
+			routing,
+		),
+		fx.Invoke(
+			task,
+		),
+	).Run()
 }
 
-func app(c *cli.Context, opts ...fx.Option) *fx.App {
-	env := c.String("env")
-	cfg := c.String("configs")
+func routing(
+	app *pocketbase.PocketBase,
+	lc fx.Lifecycle,
+	settings *settings.Settings,
+	home *handlers.Home,
+) {
+	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		e.Router.GET("/", home.Home)
 
-	opts = append(opts,
-		fx.Provide(
-			func() config.Config {
-				return config.New(env, cfg)
-			},
-			logger.New,
-			server.New,
-			worker.New,
-		),
-	)
+		// static
+		e.Router.GET("/static/*", func(c echo.Context) error {
+			p := c.PathParam("*")
 
-	return fx.New(
-		opts...,
-	)
+			path, err := url.PathUnescape(p)
+			if err != nil {
+				return fmt.Errorf("failed to unescape path variable: %w", err)
+			}
+
+			err = c.FileFS(path, static.FS)
+			if err != nil && errors.Is(err, echo.ErrNotFound) {
+				return c.FileFS("index.html", static.FS)
+			}
+
+			return err
+		})
+
+		return nil
+
+	})
+
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			go app.Start()
+
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			return nil
+		},
+	})
+}
+
+// go run cmd/gitch/main.go migrate collections --dir ./data/
+func migration(app *pocketbase.PocketBase) {
+	isGoRun := strings.HasPrefix(os.Args[0], os.TempDir())
+
+	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
+		Automigrate: isGoRun,
+	})
+}
+
+func task(app *pocketbase.PocketBase, settings *settings.Settings, sync *tasks.Sync) {
+	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		scheduler := cron.New()
+		// TODO: use period from settings
+		scheduler.MustAdd("sync", settings.Period("0 */1 * * *"), func() {
+			sync.Do()
+		})
+		scheduler.Start()
+		return nil
+	})
 }

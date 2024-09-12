@@ -1,35 +1,16 @@
-# gitch
+# Gitch
 
-Сервис для синхронизации репозиториев. В конфиге можно указать с какой периодичностью нужно запускать синхронизацию. 
+Сервис для синхронизации репозиториев.
 
 ## Установка
 
-Сейчас нужно склонировать репозиторий локально, собрать бинарник и использовать. Перед использованием переименуйте 
-config.template.yml в config.yaml
+Запуск в докере
 
-Сборка сервиса
-
-```
-go build -o gitch ./cmd/gitch
+```sh
+docker run -v /opt/gitch/data:/data  -p 8080:8080 -d registry.gitflic.ru/project/kovardin/gitch/gitch:latest --dir /data --dev  --http :8080 serve 
 ```
 
-Запуск сервиса
-
-```
-./gitch --env=config server
-```
-
-Разовая синхронизация репозиторий
-
-```
-./gitch sync --from=git@gitflic.ru:example/example.git --to=git@github.com:example/example.git
-```
-
-## Доделки
-
-- [x] Периодический синк репозиториев
-- [ ] Синхронизация по веб-хуку
-- [ ] Завернуть в Docker для быстрого старта
+`opt/gitch/data` - директория с данными 
 
 ## Ссылки 
 

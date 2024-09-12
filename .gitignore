@@ -1,8 +1,10 @@
-.idea/*
-*.iml
-example
-config.yml
+build/*
 prod.yml
-/build/bin/*
+.vscode/settings.json
+deploy/*
+*.env
+build/*
+bin/*
 Supfile.yml
 Taskfile.yaml
+data/*
