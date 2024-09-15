@@ -96,12 +96,37 @@ func migration(app *pocketbase.PocketBase) {
 }
 
 func task(app *pocketbase.PocketBase, settings *settings.Settings, sync *tasks.Sync) {
-	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
-		scheduler := cron.New()
-		scheduler.MustAdd("sync", settings.Period("0 */1 * * *"), func() {
-			sync.Do()
-		})
-		scheduler.Start()
+	scheduler := cron.New()
+
+	app.OnModelAfterUpdate("settings").Add(func(e *core.ModelEvent) error {
+		update(app, scheduler, settings, sync)
+
 		return nil
 	})
+
+	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		update(app, scheduler, settings, sync)
+
+		return nil
+	})
+}
+
+func update(
+	app *pocketbase.PocketBase,
+	scheduler *cron.Cron,
+	settings *settings.Settings,
+	sync *tasks.Sync,
+) {
+	if scheduler.HasStarted() {
+		scheduler.Stop()
+	}
+
+	period := settings.Period("0 */1 * * *")
+
+	scheduler.MustAdd("sync", period, func() {
+		sync.Do()
+	})
+
+	scheduler.Start()
+	app.Logger().Info("scheduled", "period", period)
 }
