@@ -15,25 +15,11 @@ func New(app *pocketbase.PocketBase) *Settings {
 	}
 }
 
-func (s *Settings) SSHKey() string {
-	record, err := s.app.Dao().FindFirstRecordByFilter("settings", "key = {:key}", dbx.Params{"key": "ssh_key"})
+func (s *Settings) Value(key string) string {
+	record, err := s.app.Dao().FindFirstRecordByFilter("settings", "key = {:key}", dbx.Params{"key": "key"})
 	if err != nil {
 		s.app.Logger().Warn("error on search settings", "err", err)
 		return ""
-	}
-
-	return record.GetString("value")
-}
-
-func (s *Settings) Period(def string) string {
-	record, err := s.app.Dao().FindFirstRecordByFilter("settings", "key = {:key}", dbx.Params{"key": "period"})
-	if err != nil {
-		s.app.Logger().Warn("error on search settings", "err", err)
-		return def
-	}
-
-	if record.GetString("value") == "" {
-		return def
 	}
 
 	return record.GetString("value")

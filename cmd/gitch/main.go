@@ -96,16 +96,58 @@ func migration(app *pocketbase.PocketBase) {
 }
 
 func task(app *pocketbase.PocketBase, settings *settings.Settings, sync *tasks.Sync) {
-	scheduler := cron.New()
+	schedulers := map[string]*cron.Cron{}
 
-	app.OnModelAfterUpdate("settings").Add(func(e *core.ModelEvent) error {
-		update(app, scheduler, settings, sync)
+	app.OnModelAfterCreate("services").Add(func(e *core.ModelEvent) error {
+		service, err := app.Dao().FindRecordById("services", e.Model.GetId())
+		if err != nil {
+			return err
+		}
+
+		schedulers[service.Id] = cron.New()
+
+		update(app, schedulers, sync)
+
+		return nil
+	})
+
+	app.OnModelAfterDelete("services").Add(func(e *core.ModelEvent) error {
+		if sch, ok := schedulers[e.Model.GetId()]; ok {
+			if sch.HasStarted() {
+				sch.Stop()
+			}
+		}
+		delete(schedulers, e.Model.GetId())
+
+		update(app, schedulers, sync)
+
+		return nil
+	})
+
+	app.OnModelAfterUpdate("services").Add(func(e *core.ModelEvent) error {
+		update(app, schedulers, sync)
 
 		return nil
 	})
 
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
-		update(app, scheduler, settings, sync)
+		services, err := app.Dao().FindRecordsByFilter(
+			"services",
+			"true = true",
+			"-created",
+			100,
+			0,
+		)
+
+		if err != nil {
+			panic(err)
+		}
+
+		for _, service := range services {
+			schedulers[service.Id] = cron.New()
+		}
+
+		update(app, schedulers, sync)
 
 		return nil
 	})
@@ -113,20 +155,36 @@ func task(app *pocketbase.PocketBase, settings *settings.Settings, sync *tasks.S
 
 func update(
 	app *pocketbase.PocketBase,
-	scheduler *cron.Cron,
-	settings *settings.Settings,
+	schedulers map[string]*cron.Cron,
 	sync *tasks.Sync,
 ) {
-	if scheduler.HasStarted() {
-		scheduler.Stop()
+
+	for id, scheduler := range schedulers {
+		service, err := app.Dao().FindRecordById("services", id)
+		if err != nil {
+			app.Logger().Error("error on process service")
+
+			continue
+		}
+
+		if scheduler.HasStarted() {
+			scheduler.Stop()
+		}
+
+		if !service.GetBool("enabled") {
+			continue
+		}
+
+		period := service.GetString("period")
+		if period == "" {
+			period = "0 */1 * * *"
+		}
+
+		scheduler.MustAdd("sync", period, func() {
+			sync.Do(service)
+		})
+
+		scheduler.Start()
+		app.Logger().Info("scheduled", "period", period, "id", id)
 	}
-
-	period := settings.Period("0 */1 * * *")
-
-	scheduler.MustAdd("sync", period, func() {
-		sync.Do()
-	})
-
-	scheduler.Start()
-	app.Logger().Info("scheduled", "period", period)
 }
