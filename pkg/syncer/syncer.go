@@ -28,18 +28,18 @@ func New(from, to, key string) *Syncer {
 }
 
 func (s *Syncer) Sync() error {
-	publicKeys, err := ssh.NewPublicKeys("git", []byte(s.key), "")
+	keys, err := ssh.NewPublicKeys("git", []byte(s.key), "")
 	if err != nil {
 		return fmt.Errorf("error on create key: %w", err)
 	}
 
 	// https://github.com/src-d/go-git/issues/637
-	publicKeys.HostKeyCallbackHelper = ssh.HostKeyCallbackHelper{
+	keys.HostKeyCallbackHelper = ssh.HostKeyCallbackHelper{
 		HostKeyCallback: ss.InsecureIgnoreHostKey(),
 	}
 
 	r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
-		Auth:     publicKeys,
+		Auth:     keys,
 		URL:      s.from,
 		Progress: os.Stdout,
 		Mirror:   true,
@@ -61,7 +61,7 @@ func (s *Syncer) Sync() error {
 
 	if err := remote.Push(&git.PushOptions{
 		FollowTags: true,
-		Auth:       publicKeys,
+		Auth:       keys,
 		RemoteName: "sync",
 		Force:      true,
 		Progress:   os.Stdout,
